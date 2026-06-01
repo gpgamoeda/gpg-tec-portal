@@ -1,0 +1,138 @@
+body {
+  margin: 0;
+  color-scheme: dark;
+  background: #000;
+  color: #d9ffe4;
+  font-family: "Share Tech Mono", Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  --green: #41ff7a;
+  --green-soft: #9dffc0;
+  --text: #d9ffe4;
+}
+
+body.project-page {
+  min-height: 100svh;
+  overflow: auto;
+  background: #000;
+}
+
+.project-dossier {
+  width: min(1040px, calc(100vw - 32px));
+  margin: 0 auto;
+  padding: clamp(28px, 6vw, 72px) 0;
+  color: var(--green-soft);
+  font-size: clamp(0.95rem, 1.8vw, 1.08rem);
+  line-height: 1.58;
+  text-shadow: 0 0 11px rgba(65, 255, 122, 0.38);
+}
+
+.project-kicker,
+.project-status,
+.project-link {
+  color: #62e8ff;
+}
+
+.project-kicker {
+  margin: 0 0 10px;
+}
+
+.project-dossier h1 {
+  margin: 0 0 12px;
+  color: var(--green);
+  font-size: clamp(2.3rem, 8vw, 5.5rem);
+  font-weight: 400;
+  line-height: 0.95;
+  text-shadow: 0 0 18px rgba(65, 255, 122, 0.44);
+}
+
+.project-summary {
+  max-width: 760px;
+  margin: 0 0 clamp(28px, 5vw, 48px);
+  color: var(--text);
+}
+
+.project-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(20px, 4vw, 40px);
+}
+
+.project-section {
+  min-width: 0;
+}
+
+.project-section h2 {
+  margin: 0 0 12px;
+  color: var(--green);
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+.project-section p,
+.project-section ul,
+.project-section ol {
+  margin: 0 0 20px;
+}
+
+.project-section ul,
+.project-section ol {
+  padding-left: 22px;
+}
+
+.project-section li {
+  margin: 0 0 8px;
+}
+
+.project-meta {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.project-meta div {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 12px;
+}
+
+.project-meta dt {
+  color: rgba(157, 255, 192, 0.68);
+}
+
+.project-meta dd {
+  margin: 0;
+}
+
+.project-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: clamp(28px, 5vw, 48px);
+}
+
+.project-link {
+  text-decoration: none;
+}
+
+.project-link:hover,
+.project-link:focus-visible {
+  color: var(--green);
+  outline: none;
+}
+
+@media (max-width: 780px) {
+  .project-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .project-meta div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}

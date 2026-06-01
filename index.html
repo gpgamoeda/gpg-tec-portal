@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Portal pessoal GPG TEC com interface de terminal inspirada em Matrix."
+    />
+    <title>GPG TEC | Portal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Space+Grotesk:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <canvas id="matrix-rain" aria-hidden="true"></canvas>
+
+    <main class="scene" aria-label="Portal GPG TEC">
+      <div class="signal-noise" aria-hidden="true"></div>
+      <div id="terminal-output" class="terminal-output" aria-live="polite"></div>
+
+      <form id="terminal-form" class="terminal-input is-hidden" autocomplete="off" aria-label="Login">
+        <label id="prompt-label" for="terminal-command" aria-label="login"></label>
+        <input
+          id="terminal-command"
+          name="command"
+          type="email"
+          inputmode="email"
+          spellcheck="false"
+          disabled
+        />
+      </form>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
