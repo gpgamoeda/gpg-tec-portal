@@ -113,6 +113,10 @@ admin next rm oraculo 1
 admin duplicar oraculo oraculo-clone
 admin remover oraculo-clone
 admin github owner/repo
+admin cloudflare pages
+admin cloudflare workers
+admin cloudflare importar pages gpg-tec-portal
+admin cloudflare importar workers gpg-tec-portal-api
 admin export
 admin copiar
 admin download
@@ -125,6 +129,9 @@ admin sair
 O comando `admin github owner/repo` importa metadados de repositorios publicos do GitHub pelo navegador:
 descricao, README, linguagem principal, link, data de atualizacao e possiveis itens de roadmap.
 Repositorios privados exigirao backend/token em uma etapa futura.
+
+Os comandos `admin cloudflare pages` e `admin cloudflare workers` listam projetos ativos pela API do Worker.
+O token da Cloudflare fica apenas no backend como secret.
 
 ## Backend
 

@@ -12,13 +12,15 @@ GET  /api/session
 GET  /api/projects
 PUT  /api/projects/:id
 POST /api/github/import
+GET  /api/cloudflare/pages
+GET  /api/cloudflare/workers
 ```
 
 ## Seguranca
 
 - Senhas sao armazenadas com PBKDF2-SHA256, salt unico e 100000 iteracoes.
 - A senha nunca e salva de forma reversivel.
-- Sessao usa token aleatorio salvo em cookie `HttpOnly`, `Secure` e `SameSite=Lax`.
+- Sessao usa token aleatorio salvo em cookie `HttpOnly`, `Secure` e `SameSite=None`.
 - O banco guarda apenas o hash do token da sessao.
 - Importacao de repos privados deve acontecer no Worker usando token em secret.
 
@@ -73,7 +75,30 @@ wrangler d1 execute gpg-tec-portal --remote --file=schema.sql
 
 ```text
 SETUP_TOKEN          secret temporario para criar/atualizar o admin
+CF_API_TOKEN         token Cloudflare com leitura de Pages e Workers
+CF_ACCOUNT_ID        account id da conta Cloudflare
 SESSION_TTL_SECONDS  tempo da sessao em segundos, padrao 28800
 ALLOWED_ORIGINS      origens autorizadas para CORS, separadas por virgula
 COOKIE_SAMESITE      use Lax no mesmo dominio; use None quando site e API ficarem em dominios diferentes
+```
+
+## Vínculo Com Cloudflare
+
+Crie um API Token na Cloudflare com permissoes de leitura:
+
+```text
+Account / Cloudflare Pages / Read
+Account / Workers Scripts / Read
+```
+
+Depois salve o token como secret:
+
+```bash
+wrangler secret put CF_API_TOKEN
+```
+
+E configure o account id no `wrangler.toml` ou nas variaveis do Worker:
+
+```text
+CF_ACCOUNT_ID=seu_account_id
 ```

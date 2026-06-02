@@ -139,6 +139,22 @@ function publicUser(user) {
   };
 }
 
+function slugify(value) {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function titleFromName(name) {
+  return name
+    .replace(/[-_]+/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 function routeNotImplemented(name) {
   return {
     ok: false,
@@ -249,6 +265,138 @@ async function handleLogout(request, env) {
   });
 }
 
+async function requireAdmin(request, env) {
+  const user = await getSessionUser(request, env);
+
+  if (!user) {
+    return { error: json(request, env, { ok: false, message: "sessao invalida" }, 401) };
+  }
+
+  if (user.role !== "admin") {
+    return { error: json(request, env, { ok: false, message: "acesso admin exigido" }, 403) };
+  }
+
+  return { user };
+}
+
+async function fetchCloudflare(request, env, path) {
+  if (!env.CF_ACCOUNT_ID || !env.CF_API_TOKEN) {
+    return {
+      error: json(request, env, {
+        ok: false,
+        message: "CF_ACCOUNT_ID e CF_API_TOKEN precisam ser configurados no Worker",
+      }, 501),
+    };
+  }
+
+  const response = await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}${path}`,
+    {
+      headers: {
+        Authorization: `Bearer ${env.CF_API_TOKEN}`,
+        "content-type": "application/json",
+      },
+    },
+  );
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok || data.success === false) {
+    return {
+      error: json(request, env, {
+        ok: false,
+        message: "Cloudflare API falhou",
+        status: response.status,
+        errors: data.errors || [],
+      }, response.ok ? 502 : response.status),
+    };
+  }
+
+  return { data };
+}
+
+function pageUrl(project) {
+  const domains = [
+    ...(project.domains || []),
+    project.subdomain,
+    project.name ? `${project.name}.pages.dev` : "",
+  ].filter(Boolean);
+  const domain = domains.find((item) => !item.includes("workers.dev")) || domains[0];
+  return domain ? `https://${domain.replace(/^https?:\/\//, "")}` : "";
+}
+
+function normalizePageProject(project) {
+  const deployment = project.latest_deployment || {};
+  const repo = project.source?.config?.owner && project.source?.config?.repo_name
+    ? `https://github.com/${project.source.config.owner}/${project.source.config.repo_name}`
+    : "";
+
+  return {
+    id: slugify(project.name),
+    name: project.name,
+    title: titleFromName(project.name),
+    type: "pages",
+    status: deployment.latest_stage?.status || deployment.status || "ativo",
+    url: pageUrl(project),
+    repo,
+    productionBranch: project.production_branch || project.source?.config?.production_branch || "",
+    updated: (deployment.modified_on || deployment.created_on || project.modified_on || project.created_on || new Date().toISOString()).slice(0, 10),
+  };
+}
+
+function normalizeWorkerScript(script) {
+  const name = script.id || script.name || "";
+
+  return {
+    id: slugify(name),
+    name,
+    title: titleFromName(name),
+    type: "worker",
+    status: "ativo",
+    url: name ? `https://${name}.gpgamoeda.workers.dev` : "",
+    repo: "",
+    productionBranch: "",
+    updated: (script.modified_on || script.created_on || new Date().toISOString()).slice(0, 10),
+  };
+}
+
+async function listCloudflarePages(request, env) {
+  const admin = await requireAdmin(request, env);
+
+  if (admin.error) {
+    return admin.error;
+  }
+
+  const result = await fetchCloudflare(request, env, "/pages/projects");
+
+  if (result.error) {
+    return result.error;
+  }
+
+  return json(request, env, {
+    ok: true,
+    projects: (result.data.result || []).map(normalizePageProject),
+  });
+}
+
+async function listCloudflareWorkers(request, env) {
+  const admin = await requireAdmin(request, env);
+
+  if (admin.error) {
+    return admin.error;
+  }
+
+  const result = await fetchCloudflare(request, env, "/workers/scripts");
+
+  if (result.error) {
+    return result.error;
+  }
+
+  return json(request, env, {
+    ok: true,
+    projects: (result.data.result || []).map(normalizeWorkerScript),
+  });
+}
+
 async function handleSetupAdmin(request, env) {
   const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
 
@@ -313,6 +461,14 @@ export default {
 
       if (request.method === "GET" && url.pathname === "/api/session") {
         return handleSession(request, env);
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/cloudflare/pages") {
+        return listCloudflarePages(request, env);
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/cloudflare/workers") {
+        return listCloudflareWorkers(request, env);
       }
 
       if (request.method === "GET" && url.pathname === "/api/projects") {

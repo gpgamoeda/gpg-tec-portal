@@ -4,6 +4,7 @@ compatibility_date = "2026-06-01"
 
 [vars]
 ALLOWED_ORIGINS = "https://gpg-tec-portal.pages.dev,https://gpg.tec.br"
+CF_ACCOUNT_ID = "9ceae3814c08424114b5fb0d5829aaa3"
 COOKIE_SAMESITE = "None"
 
 [[d1_databases]]

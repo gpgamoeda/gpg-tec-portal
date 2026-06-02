@@ -3,6 +3,10 @@ import {
   resetProjectCatalog,
   saveProjectCatalog,
 } from "../data/catalog-storage.js";
+import {
+  catalogProjectFromCloudflare,
+  listCloudflareProjects,
+} from "./cloudflare-import.js";
 import { importProjectFromGithub } from "./github-import.js";
 
 export function createAdminCommands({ baseProjects, projects, terminal, ui, findProject }) {
@@ -433,6 +437,70 @@ export function createAdminCommands({ baseProjects, projects, terminal, ui, find
     }
   }
 
+  async function listCloudflare(type) {
+    const label = type === "workers" ? "workers" : "pages";
+
+    ui.appendLine(`admin/cloudflare: consultando ${label}...`);
+
+    try {
+      const cloudflareProjects = await listCloudflareProjects(label);
+
+      if (!cloudflareProjects.length) {
+        ui.appendLine(`admin/cloudflare: nenhum ${label} localizado.`, "dim");
+        return;
+      }
+
+      ui.typeLines([
+        `admin/cloudflare/${label}:`,
+        ...cloudflareProjects.map((project, index) => (
+          `${String(index + 1).padStart(2, "0")} ${project.id} :: ${project.status} :: ${project.url || "sem url"}`
+        )),
+      ]);
+    } catch (error) {
+      ui.appendLine(`admin/cloudflare falhou: ${error.message}`, "warning");
+      ui.appendLine("verifique CF_ACCOUNT_ID e CF_API_TOKEN no Worker.", "dim");
+    }
+  }
+
+  async function importCloudflareProject(type, query) {
+    const label = type === "workers" ? "workers" : "pages";
+
+    if (!query) {
+      ui.appendLine(`uso: admin cloudflare importar ${label} <nome>`, "warning");
+      return;
+    }
+
+    ui.appendLine(`admin/cloudflare: importando ${query} de ${label}...`);
+
+    try {
+      const cloudflareProjects = await listCloudflareProjects(label);
+      const cloudflareProject = cloudflareProjects.find((project) => {
+        const names = [project.id, project.name, project.title].filter(Boolean);
+        return names.some((name) => name.toLowerCase() === query.toLowerCase());
+      });
+
+      if (!cloudflareProject) {
+        ui.appendLine(`admin/cloudflare: projeto nao localizado: ${query}`, "warning");
+        return;
+      }
+
+      const importedProject = catalogProjectFromCloudflare(cloudflareProject);
+      const existingIndex = projects.findIndex((project) => project.id === importedProject.id);
+
+      if (existingIndex >= 0) {
+        projects.splice(existingIndex, 1, importedProject);
+      } else {
+        projects.push(importedProject);
+      }
+
+      persist(`admin/cloudflare: ${importedProject.id} importado.`);
+      viewProject(importedProject.id);
+    } catch (error) {
+      ui.appendLine(`admin/cloudflare falhou: ${error.message}`, "warning");
+      ui.appendLine("verifique CF_ACCOUNT_ID e CF_API_TOKEN no Worker.", "dim");
+    }
+  }
+
   function showHelp() {
     ui.typeLines([
       "admin/comandos:",
@@ -454,6 +522,9 @@ export function createAdminCommands({ baseProjects, projects, terminal, ui, find
       "  admin duplicar <codigo> <novo-id>",
       "  admin remover <codigo>",
       "  admin github <owner/repo> importa repo publico",
+      "  admin cloudflare pages lista Pages ativos",
+      "  admin cloudflare workers lista Workers ativos",
+      "  admin cloudflare importar pages|workers <nome>",
       "  admin export        mostra JSON do catalogo local",
       "  admin copiar        copia JSON para clipboard",
       "  admin download      baixa JSON do catalogo",
@@ -623,6 +694,22 @@ export function createAdminCommands({ baseProjects, projects, terminal, ui, find
 
     if (command.startsWith("admin github ")) {
       importGithubProject(rawValue.replace(/^admin\s+github\s+/i, ""));
+      return true;
+    }
+
+    if (command === "admin cloudflare pages") {
+      listCloudflare("pages");
+      return true;
+    }
+
+    if (command === "admin cloudflare workers") {
+      listCloudflare("workers");
+      return true;
+    }
+
+    if (command.startsWith("admin cloudflare importar ")) {
+      const [, , , type, ...queryParts] = rawValue.trim().split(/\s+/);
+      importCloudflareProject(type, queryParts.join(" "));
       return true;
     }
 
