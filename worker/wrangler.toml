@@ -2,7 +2,11 @@ name = "gpg-tec-portal-api"
 main = "src/index.js"
 compatibility_date = "2026-06-01"
 
+[vars]
+ALLOWED_ORIGINS = "https://gpg-tec-portal.pages.dev,https://gpg.tec.br"
+COOKIE_SAMESITE = "None"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "gpg-tec-portal"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "9a5c3114-e5b2-46e6-8fb6-0c410c0bfc18"

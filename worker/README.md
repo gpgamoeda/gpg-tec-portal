@@ -16,7 +16,7 @@ POST /api/github/import
 
 ## Seguranca
 
-- Senhas sao armazenadas com PBKDF2-SHA256, salt unico e 210000 iteracoes.
+- Senhas sao armazenadas com PBKDF2-SHA256, salt unico e 100000 iteracoes.
 - A senha nunca e salva de forma reversivel.
 - Sessao usa token aleatorio salvo em cookie `HttpOnly`, `Secure` e `SameSite=Lax`.
 - O banco guarda apenas o hash do token da sessao.
@@ -74,6 +74,6 @@ wrangler d1 execute gpg-tec-portal --remote --file=schema.sql
 ```text
 SETUP_TOKEN          secret temporario para criar/atualizar o admin
 SESSION_TTL_SECONDS  tempo da sessao em segundos, padrao 28800
-ALLOWED_ORIGIN       origem autorizada para CORS quando API e site estiverem em dominios diferentes
-COOKIE_SAMESITE      use Lax no mesmo dominio; use None apenas se site e API ficarem em dominios diferentes
+ALLOWED_ORIGINS      origens autorizadas para CORS, separadas por virgula
+COOKIE_SAMESITE      use Lax no mesmo dominio; use None quando site e API ficarem em dominios diferentes
 ```

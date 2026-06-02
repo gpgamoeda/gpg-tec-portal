@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
   password_salt TEXT NOT NULL,
-  password_iterations INTEGER NOT NULL DEFAULT 210000,
+  password_iterations INTEGER NOT NULL DEFAULT 100000,
   role TEXT NOT NULL DEFAULT 'admin',
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

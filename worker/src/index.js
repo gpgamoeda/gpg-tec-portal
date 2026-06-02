@@ -1,11 +1,17 @@
 const encoder = new TextEncoder();
-const passwordIterations = 210000;
+const passwordIterations = 100000;
 const passwordAlgorithm = "PBKDF2-SHA256";
 const sessionCookieName = "gpg_session";
 
 function getCorsHeaders(request, env) {
   const origin = request.headers.get("origin");
-  const allowedOrigin = env.ALLOWED_ORIGIN || origin;
+  const allowedOrigins = (env.ALLOWED_ORIGINS || env.ALLOWED_ORIGIN || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const allowedOrigin = allowedOrigins.length
+    ? allowedOrigins.find((item) => item === origin)
+    : origin;
 
   if (!origin || !allowedOrigin || origin !== allowedOrigin) {
     return {};
@@ -141,6 +147,16 @@ function routeNotImplemented(name) {
   };
 }
 
+function handleError(request, env, error) {
+  console.error(error);
+
+  return json(request, env, {
+    ok: false,
+    message: "erro interno da api",
+    detail: env.DEBUG_ERRORS === "true" ? error.message : undefined,
+  }, 500);
+}
+
 async function handleLogin(request, env) {
   const body = await readJson(request);
 
@@ -273,43 +289,47 @@ async function handleSetupAdmin(request, env) {
 
 export default {
   async fetch(request, env) {
-    const url = new URL(request.url);
+    try {
+      const url = new URL(request.url);
 
-    if (request.method === "OPTIONS") {
-      return new Response(null, {
-        status: 204,
-        headers: getCorsHeaders(request, env),
-      });
+      if (request.method === "OPTIONS") {
+        return new Response(null, {
+          status: 204,
+          headers: getCorsHeaders(request, env),
+        });
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/setup/admin") {
+        return handleSetupAdmin(request, env);
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/login") {
+        return handleLogin(request, env);
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/logout") {
+        return handleLogout(request, env);
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/session") {
+        return handleSession(request, env);
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/projects") {
+        return json(request, env, routeNotImplemented("projects:list"), 501);
+      }
+
+      if (request.method === "PUT" && url.pathname.startsWith("/api/projects/")) {
+        return json(request, env, routeNotImplemented("projects:update"), 501);
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/github/import") {
+        return json(request, env, routeNotImplemented("github:import"), 501);
+      }
+
+      return json(request, env, { ok: false, message: "not found" }, 404);
+    } catch (error) {
+      return handleError(request, env, error);
     }
-
-    if (request.method === "POST" && url.pathname === "/api/setup/admin") {
-      return handleSetupAdmin(request, env);
-    }
-
-    if (request.method === "POST" && url.pathname === "/api/login") {
-      return handleLogin(request, env);
-    }
-
-    if (request.method === "POST" && url.pathname === "/api/logout") {
-      return handleLogout(request, env);
-    }
-
-    if (request.method === "GET" && url.pathname === "/api/session") {
-      return handleSession(request, env);
-    }
-
-    if (request.method === "GET" && url.pathname === "/api/projects") {
-      return json(request, env, routeNotImplemented("projects:list"), 501);
-    }
-
-    if (request.method === "PUT" && url.pathname.startsWith("/api/projects/")) {
-      return json(request, env, routeNotImplemented("projects:update"), 501);
-    }
-
-    if (request.method === "POST" && url.pathname === "/api/github/import") {
-      return json(request, env, routeNotImplemented("github:import"), 501);
-    }
-
-    return json(request, env, { ok: false, message: "not found" }, 404);
   },
 };
