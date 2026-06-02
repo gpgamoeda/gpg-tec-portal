@@ -76,13 +76,29 @@ admin help
 admin projetos
 admin ver oraculo
 admin status oraculo online
+admin titulo oraculo Simulador Mundial
+admin codinome oraculo Oraculo 32
+admin resumo oraculo Novo resumo do projeto
 admin visibilidade oraculo public
 admin prioridade oraculo 1
 admin url oraculo https://exemplo.com
+admin alias add oraculo mundial
+admin alias rm oraculo mundial
 admin tag add oraculo simulador
 admin tag rm oraculo simulador
+admin stack add oraculo javascript
+admin stack rm oraculo javascript
+admin next add oraculo publicar painel final
+admin next list oraculo
+admin next rm oraculo 1
+admin duplicar oraculo oraculo-clone
+admin remover oraculo-clone
 admin github owner/repo
 admin export
+admin copiar
+admin download
+admin colar
+admin importar [{"id":"exemplo"}]
 admin reset
 admin sair
 ```

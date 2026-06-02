@@ -6,6 +6,32 @@ import {
 import { importProjectFromGithub } from "./github-import.js";
 
 export function createAdminCommands({ baseProjects, projects, terminal, ui, findProject }) {
+  function today() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function slugify(value) {
+    return value
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+  }
+
+  function parseProjectValue(rawValue, prefix) {
+    const rest = rawValue.replace(prefix, "").trim();
+    const [query, ...valueParts] = rest.split(/\s+/);
+    return { query, value: valueParts.join(" ").trim() };
+  }
+
+  function parseProjectToken(rawValue, prefix) {
+    const rest = rawValue.replace(prefix, "").trim();
+    const [query, token] = rest.split(/\s+/);
+    return { query, token };
+  }
+
   function enterAdminMode() {
     terminal.admin = true;
     ui.typeLines([
@@ -79,7 +105,7 @@ export function createAdminCommands({ baseProjects, projects, terminal, ui, find
     }
 
     project[field] = value;
-    project.updated = new Date().toISOString().slice(0, 10);
+    project.updated = today();
     persist(`admin: ${field} atualizado em ${project.id}.`);
   }
 
@@ -113,7 +139,7 @@ export function createAdminCommands({ baseProjects, projects, terminal, ui, find
     }
 
     project.tags = Array.from(new Set([...(project.tags || []), tag]));
-    project.updated = new Date().toISOString().slice(0, 10);
+    project.updated = today();
     persist(`admin: tag adicionada em ${project.id}.`);
   }
 
@@ -131,7 +157,7 @@ export function createAdminCommands({ baseProjects, projects, terminal, ui, find
     }
 
     project.tags = (project.tags || []).filter((item) => item !== tag);
-    project.updated = new Date().toISOString().slice(0, 10);
+    project.updated = today();
     persist(`admin: tag removida de ${project.id}.`);
   }
 
@@ -141,10 +167,244 @@ export function createAdminCommands({ baseProjects, projects, terminal, ui, find
     ui.appendLine(exportProjectCatalog(projects));
   }
 
+  async function copyCatalog() {
+    if (!navigator.clipboard?.writeText) {
+      ui.appendLine("clipboard indisponivel neste navegador.", "warning");
+      return;
+    }
+
+    await navigator.clipboard.writeText(exportProjectCatalog(projects));
+    ui.appendLine("admin: catalogo copiado para o clipboard.", "dim");
+  }
+
+  function downloadCatalog() {
+    const blob = new Blob([exportProjectCatalog(projects)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `gpg-project-catalog-${today()}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    ui.appendLine("admin: download do catalogo iniciado.", "dim");
+  }
+
+  function replaceCatalog(importedProjects) {
+    if (!Array.isArray(importedProjects)) {
+      ui.appendLine("JSON invalido: esperava uma lista de projetos.", "warning");
+      return;
+    }
+
+    projects.splice(0, projects.length, ...importedProjects);
+    persist("admin: catalogo importado e salvo no navegador local.");
+  }
+
+  async function pasteCatalog() {
+    if (!navigator.clipboard?.readText) {
+      ui.appendLine("leitura do clipboard indisponivel neste navegador.", "warning");
+      return;
+    }
+
+    try {
+      replaceCatalog(JSON.parse(await navigator.clipboard.readText()));
+    } catch {
+      ui.appendLine("clipboard nao contem JSON valido.", "warning");
+    }
+  }
+
+  function importCatalog(rawValue) {
+    const jsonText = rawValue.replace(/^admin\s+importar\s+/i, "").trim();
+
+    if (!jsonText) {
+      ui.appendLine("uso: admin importar <json>", "warning");
+      ui.appendLine("alternativa: copie o JSON e use admin colar.", "dim");
+      return;
+    }
+
+    try {
+      replaceCatalog(JSON.parse(jsonText));
+    } catch {
+      ui.appendLine("JSON invalido.", "warning");
+    }
+  }
+
   function resetCatalog() {
     projects.splice(0, projects.length, ...structuredClone(baseProjects));
     resetProjectCatalog();
     ui.appendLine("admin: catalogo local restaurado para a base do repositorio.", "dim");
+  }
+
+  function updateTextCommand(rawValue, prefix, field) {
+    const { query, value } = parseProjectValue(rawValue, prefix);
+    updateProjectField(query, field, value);
+  }
+
+  function updateCodename(rawValue) {
+    const { query, value } = parseProjectValue(rawValue, /^admin\s+codinome\s+/i);
+
+    if (!query || !value) {
+      ui.appendLine("uso: admin codinome <codigo> <texto>", "warning");
+      return;
+    }
+
+    const project = findProject(query);
+
+    if (!project) {
+      ui.appendLine(`admin: projeto nao localizado: ${query}`, "warning");
+      return;
+    }
+
+    project.codename = value;
+    project.updated = today();
+    persist(`admin: codinome atualizado em ${project.id}.`);
+  }
+
+  function updateAliases(query, alias, mode) {
+    if (!query || !alias) {
+      ui.appendLine(`uso: admin alias ${mode} <codigo> <alias>`, "warning");
+      return;
+    }
+
+    const project = findProject(query);
+
+    if (!project) {
+      ui.appendLine(`admin: projeto nao localizado: ${query}`, "warning");
+      return;
+    }
+
+    if (mode === "add") {
+      project.aliases = Array.from(new Set([...(project.aliases || []), alias]));
+    } else {
+      project.aliases = (project.aliases || []).filter((item) => item !== alias);
+    }
+
+    project.updated = today();
+    persist(`admin: aliases atualizados em ${project.id}.`);
+  }
+
+  function updateStack(query, item, mode) {
+    if (!query || !item) {
+      ui.appendLine(`uso: admin stack ${mode} <codigo> <item>`, "warning");
+      return;
+    }
+
+    const project = findProject(query);
+
+    if (!project) {
+      ui.appendLine(`admin: projeto nao localizado: ${query}`, "warning");
+      return;
+    }
+
+    if (mode === "add") {
+      project.stack = Array.from(new Set([...(project.stack || []), item]));
+    } else {
+      project.stack = (project.stack || []).filter((value) => value.toLowerCase() !== item.toLowerCase());
+    }
+
+    project.updated = today();
+    persist(`admin: stack atualizado em ${project.id}.`);
+  }
+
+  function addNext(rawValue) {
+    const { query, value } = parseProjectValue(rawValue, /^admin\s+next\s+add\s+/i);
+
+    if (!query || !value) {
+      ui.appendLine("uso: admin next add <codigo> <texto>", "warning");
+      return;
+    }
+
+    const project = findProject(query);
+
+    if (!project) {
+      ui.appendLine(`admin: projeto nao localizado: ${query}`, "warning");
+      return;
+    }
+
+    project.next = [...(project.next || []), value];
+    project.updated = today();
+    persist(`admin: proximo passo adicionado em ${project.id}.`);
+  }
+
+  function removeNext(query, indexText) {
+    const project = findProject(query);
+    const index = Number.parseInt(indexText, 10) - 1;
+
+    if (!project) {
+      ui.appendLine(`admin: projeto nao localizado: ${query}`, "warning");
+      return;
+    }
+
+    if (!Number.isInteger(index) || index < 0 || index >= (project.next || []).length) {
+      ui.appendLine("uso: admin next rm <codigo> <numero>", "warning");
+      return;
+    }
+
+    project.next.splice(index, 1);
+    project.updated = today();
+    persist(`admin: proximo passo removido de ${project.id}.`);
+  }
+
+  function listNext(query) {
+    const project = findProject(query);
+
+    if (!project) {
+      ui.appendLine(`admin: projeto nao localizado: ${query}`, "warning");
+      return;
+    }
+
+    ui.typeLines([
+      `admin/next: ${project.id}`,
+      ...(project.next || []).map((item, index) => `  ${index + 1}. ${item}`),
+    ]);
+  }
+
+  function duplicateProject(query, requestedId) {
+    const project = findProject(query);
+
+    if (!project) {
+      ui.appendLine(`admin: projeto nao localizado: ${query}`, "warning");
+      return;
+    }
+
+    const nextId = slugify(requestedId || `${project.id}-copia`);
+
+    if (!nextId) {
+      ui.appendLine("uso: admin duplicar <codigo> <novo-id>", "warning");
+      return;
+    }
+
+    if (projects.some((item) => item.id === nextId)) {
+      ui.appendLine(`admin: ja existe projeto com id ${nextId}.`, "warning");
+      return;
+    }
+
+    projects.push({
+      ...structuredClone(project),
+      id: nextId,
+      codename: `${project.codename} Clone`,
+      aliases: [nextId],
+      status: "rascunho",
+      visibility: "hidden",
+      priority: Number(project.priority || 3) + 1,
+      updated: today(),
+    });
+
+    persist(`admin: ${project.id} duplicado como ${nextId}.`);
+  }
+
+  function removeProject(query) {
+    const index = projects.findIndex((project) => {
+      const names = [project.id, project.codename, project.title, ...(project.aliases || [])];
+      return names.some((name) => name.toLowerCase() === query.toLowerCase());
+    });
+
+    if (index === -1) {
+      ui.appendLine(`admin: projeto nao localizado: ${query}`, "warning");
+      return;
+    }
+
+    const [removedProject] = projects.splice(index, 1);
+    persist(`admin: ${removedProject.id} removido do catalogo local.`);
   }
 
   async function importGithubProject(query) {
@@ -180,13 +440,24 @@ export function createAdminCommands({ baseProjects, projects, terminal, ui, find
       "  admin projetos     lista catalogo administrativo",
       "  admin ver <codigo> mostra registro completo",
       "  admin status <codigo> <status>",
+      "  admin titulo <codigo> <texto>",
+      "  admin codinome <codigo> <texto>",
+      "  admin resumo <codigo> <texto>",
       "  admin visibilidade <codigo> public|private|hidden",
       "  admin prioridade <codigo> <numero>",
       "  admin url <codigo> <url>",
+      "  admin alias add|rm <codigo> <alias>",
       "  admin tag add <codigo> <tag>",
       "  admin tag rm <codigo> <tag>",
+      "  admin stack add|rm <codigo> <item>",
+      "  admin next add|rm|list <codigo> [valor]",
+      "  admin duplicar <codigo> <novo-id>",
+      "  admin remover <codigo>",
       "  admin github <owner/repo> importa repo publico",
       "  admin export        mostra JSON do catalogo local",
+      "  admin copiar        copia JSON para clipboard",
+      "  admin download      baixa JSON do catalogo",
+      "  admin colar         importa JSON do clipboard",
       "  admin reset         restaura catalogo base",
       "  admin sair         encerra modo admin",
     ]);
@@ -218,8 +489,28 @@ export function createAdminCommands({ baseProjects, projects, terminal, ui, find
       return true;
     }
 
+    if (command === "admin copiar") {
+      copyCatalog();
+      return true;
+    }
+
+    if (command === "admin download") {
+      downloadCatalog();
+      return true;
+    }
+
+    if (command === "admin colar") {
+      pasteCatalog();
+      return true;
+    }
+
     if (command === "admin reset") {
       resetCatalog();
+      return true;
+    }
+
+    if (command.startsWith("admin importar ")) {
+      importCatalog(rawValue);
       return true;
     }
 
@@ -231,6 +522,21 @@ export function createAdminCommands({ baseProjects, projects, terminal, ui, find
     if (command.startsWith("admin status ")) {
       const [, , query, ...statusParts] = rawValue.trim().split(/\s+/);
       updateProjectField(query, "status", statusParts.join(" "));
+      return true;
+    }
+
+    if (command.startsWith("admin titulo ")) {
+      updateTextCommand(rawValue, /^admin\s+titulo\s+/i, "title");
+      return true;
+    }
+
+    if (command.startsWith("admin codinome ")) {
+      updateCodename(rawValue);
+      return true;
+    }
+
+    if (command.startsWith("admin resumo ")) {
+      updateTextCommand(rawValue, /^admin\s+resumo\s+/i, "summary");
       return true;
     }
 
@@ -261,6 +567,57 @@ export function createAdminCommands({ baseProjects, projects, terminal, ui, find
     if (command.startsWith("admin tag rm ")) {
       const [, , , query, tag] = command.split(/\s+/);
       removeTag(query, tag);
+      return true;
+    }
+
+    if (command.startsWith("admin alias add ")) {
+      const { query, token } = parseProjectToken(command, /^admin\s+alias\s+add\s+/i);
+      updateAliases(query, token, "add");
+      return true;
+    }
+
+    if (command.startsWith("admin alias rm ")) {
+      const { query, token } = parseProjectToken(command, /^admin\s+alias\s+rm\s+/i);
+      updateAliases(query, token, "rm");
+      return true;
+    }
+
+    if (command.startsWith("admin stack add ")) {
+      const { query, token } = parseProjectToken(rawValue, /^admin\s+stack\s+add\s+/i);
+      updateStack(query, token, "add");
+      return true;
+    }
+
+    if (command.startsWith("admin stack rm ")) {
+      const { query, token } = parseProjectToken(rawValue, /^admin\s+stack\s+rm\s+/i);
+      updateStack(query, token, "rm");
+      return true;
+    }
+
+    if (command.startsWith("admin next add ")) {
+      addNext(rawValue);
+      return true;
+    }
+
+    if (command.startsWith("admin next rm ")) {
+      const [, , , query, indexText] = command.split(/\s+/);
+      removeNext(query, indexText);
+      return true;
+    }
+
+    if (command.startsWith("admin next list ")) {
+      listNext(command.replace("admin next list ", ""));
+      return true;
+    }
+
+    if (command.startsWith("admin duplicar ")) {
+      const [, , query, requestedId] = command.split(/\s+/);
+      duplicateProject(query, requestedId);
+      return true;
+    }
+
+    if (command.startsWith("admin remover ")) {
+      removeProject(command.replace("admin remover ", ""));
       return true;
     }
 
