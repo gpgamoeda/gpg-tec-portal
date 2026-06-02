@@ -1,4 +1,4 @@
-export const fallbackProjects = [
+window.GPG_FALLBACK_PROJECTS = [
   {
     id: "martelo-fantasma",
     codename: "Martelo Fantasma",

@@ -1,6 +1,5 @@
-import { fallbackProjects } from "./fallback-projects.js";
-
 const apiBaseUrl = window.GPG_API_BASE_URL || "";
+const fallbackProjects = window.GPG_FALLBACK_PROJECTS || [];
 
 function projectIdFromUrl() {
   const params = new URLSearchParams(window.location.search);
@@ -155,12 +154,16 @@ document.querySelector("[data-terminal-back]")?.addEventListener("click", (event
   window.history.back();
 });
 
-const id = projectIdFromUrl();
-const projects = await loadProjects();
-const project = findProject(projects, id);
+async function init() {
+  const id = projectIdFromUrl();
+  const projects = await loadProjects();
+  const project = findProject(projects, id);
 
-if (project) {
-  renderProject(project);
-} else {
-  renderMissingProject(id);
+  if (project) {
+    renderProject(project);
+  } else {
+    renderMissingProject(id);
+  }
 }
+
+init();
