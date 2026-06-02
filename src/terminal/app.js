@@ -5,7 +5,7 @@ import { getTerminalDom } from "./dom.js";
 import { createSignalGlitch } from "./glitch.js";
 import { createIdleController } from "./idle.js";
 import { createMatrixRain } from "./matrix.js";
-import { clearSession, loadSession, saveSession } from "./session.js";
+import { clearSession, loadSession, login } from "./session.js";
 import { createTerminalUi } from "./ui.js";
 
 const dom = getTerminalDom();
@@ -60,17 +60,17 @@ function revealTerminal() {
   ui.revealPrompt(markTerminalReady);
 }
 
-function restoreTerminalSession() {
-  const session = loadSession();
+async function restoreTerminalSession() {
+  const user = await loadSession();
 
-  if (!session) {
+  if (!user) {
     return false;
   }
 
   terminalReady = true;
   terminal.authenticated = true;
   terminal.step = "command";
-  terminal.user = session.user;
+  terminal.user = user.email;
   dom.canvas.classList.add("is-fading");
   dom.terminalForm.classList.remove("is-hidden");
   dom.terminalInput.disabled = false;
@@ -82,43 +82,62 @@ function restoreTerminalSession() {
   return true;
 }
 
-function handleLogin(value) {
+async function handleLogin(value) {
   if (terminal.step === "user") {
-    terminal.user = value || "guest";
+    if (!value) {
+      ui.appendLine("informe o operador.", "warning");
+      ui.setPrompt("login:");
+      return;
+    }
+
+    terminal.user = value;
     terminal.step = "password";
     ui.setPrompt("senha:", true);
     return;
   }
 
-  terminal.authenticated = true;
-  terminal.step = "command";
-  saveSession(terminal.user);
-  ui.typeLines([
-    "acesso concedido.",
-    `operador: ${terminal.user}`,
-    "digite help para consultar o indice.",
-  ]);
-  ui.setPrompt(`${terminal.user}@gpg:~$`);
+  dom.terminalInput.disabled = true;
+
+  try {
+    const user = await login(terminal.user, value);
+    terminal.authenticated = true;
+    terminal.step = "command";
+    terminal.user = user.email;
+    await ui.typeLines([
+      "acesso concedido.",
+      `operador: ${terminal.user}`,
+      "digite help para consultar o indice.",
+    ]);
+    ui.setPrompt(`${terminal.user}@gpg:~$`);
+  } catch (error) {
+    terminal.step = "user";
+    terminal.user = "";
+    ui.appendLine(`acesso negado: ${error.message}`, "warning");
+    ui.setPrompt("login:");
+  } finally {
+    dom.terminalInput.disabled = false;
+    dom.terminalInput.focus();
+  }
 }
 
-function logout() {
+async function logout() {
   terminal.authenticated = false;
   terminal.admin = false;
   terminal.step = "user";
   terminal.user = "";
   terminal.screen = "main";
   commands.clearCommandState();
-  clearSession();
+  await clearSession();
   ui.clearOutput();
   ui.setPrompt("login:");
 }
 
-function handleCommand(value) {
+async function handleCommand(value) {
   const command = value.trim().toLowerCase();
 
   if (command === "logout" || command === "exit") {
     ui.appendLine(`${terminal.user}@gpg:~$ ${value}`, "command");
-    logout();
+    await logout();
     return;
   }
 
@@ -126,7 +145,7 @@ function handleCommand(value) {
   ui.setPrompt(`${terminal.user}@gpg:~$`);
 }
 
-dom.terminalForm.addEventListener("submit", (event) => {
+dom.terminalForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   idle.reset();
 
@@ -142,11 +161,11 @@ dom.terminalForm.addEventListener("submit", (event) => {
   }
 
   if (!terminal.authenticated) {
-    handleLogin(value);
+    await handleLogin(value);
     return;
   }
 
-  handleCommand(value);
+  await handleCommand(value);
 });
 
 dom.terminalInput.addEventListener("keydown", (event) => {
@@ -188,8 +207,12 @@ window.addEventListener("resize", () => {
   }
 });
 
-matrix.handleResize();
+async function start() {
+  matrix.handleResize();
 
-if (!restoreTerminalSession()) {
-  matrix.startIntro();
+  if (!(await restoreTerminalSession())) {
+    matrix.startIntro();
+  }
 }
+
+start();

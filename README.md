@@ -28,6 +28,25 @@ npm run build
 npm run preview
 ```
 
+## API Local
+
+Em um terminal:
+
+```bash
+cd worker
+npm install
+npm run dev
+```
+
+Em outro terminal:
+
+```bash
+$env:VITE_API_BASE_URL="http://127.0.0.1:8787"
+npm run dev
+```
+
+O portal usa `VITE_API_BASE_URL` para encontrar a API local.
+
 ## Estrutura
 
 ```text
@@ -107,12 +126,15 @@ O comando `admin github owner/repo` importa metadados de repositorios publicos d
 descricao, README, linguagem principal, link, data de atualizacao e possiveis itens de roadmap.
 Repositorios privados exigirao backend/token em uma etapa futura.
 
-## Backend Planejado
+## Backend
 
-A pasta `worker/` contem o esqueleto de uma API em Cloudflare Workers para:
+A pasta `worker/` contem a API em Cloudflare Workers para:
 
 - login real
 - sessao segura
 - persistencia de projetos
 - importacao GitHub server-side
 - suporte futuro a repositorios privados
+
+O login usa senha com PBKDF2-SHA256, salt unico e cookie de sessao `HttpOnly`.
+Veja [worker/README.md](worker/README.md) para criar o D1 e cadastrar o primeiro admin.

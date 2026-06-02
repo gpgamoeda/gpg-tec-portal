@@ -1,10 +1,11 @@
 # GPG TEC Portal API
 
-Esqueleto de backend para login real, modo admin e importacao GitHub server-side.
+Backend em Cloudflare Workers para login real, modo admin e importacao GitHub server-side.
 
 ## Rotas Planejadas
 
 ```text
+POST /api/setup/admin
 POST /api/login
 POST /api/logout
 GET  /api/session
@@ -15,8 +16,10 @@ POST /api/github/import
 
 ## Seguranca
 
-- Senhas devem ser armazenadas como hash + salt, nunca reversiveis.
-- Sessao futura deve usar cookie `HttpOnly`, `Secure` e `SameSite=Lax` ou `Strict`.
+- Senhas sao armazenadas com PBKDF2-SHA256, salt unico e 210000 iteracoes.
+- A senha nunca e salva de forma reversivel.
+- Sessao usa token aleatorio salvo em cookie `HttpOnly`, `Secure` e `SameSite=Lax`.
+- O banco guarda apenas o hash do token da sessao.
 - Importacao de repos privados deve acontecer no Worker usando token em secret.
 
 ## Desenvolvimento
@@ -27,8 +30,50 @@ npm install
 npm run dev
 ```
 
+Em outro terminal, rode o portal:
+
+```bash
+cd ..
+$env:VITE_API_BASE_URL="http://127.0.0.1:8787"
+npm run dev
+```
+
+O portal usa `VITE_API_BASE_URL` para encontrar a API durante o desenvolvimento.
+
 ## D1
 
 ```bash
 wrangler d1 execute gpg-tec-portal --local --file=schema.sql
+```
+
+## Criar Primeiro Admin
+
+Crie um token temporario de setup:
+
+```bash
+wrangler secret put SETUP_TOKEN
+```
+
+Com o Worker local rodando, cadastre o admin:
+
+```bash
+curl -X POST http://127.0.0.1:8787/api/setup/admin ^
+  -H "content-type: application/json" ^
+  -H "authorization: Bearer SEU_SETUP_TOKEN" ^
+  -d "{\"email\":\"seu-email@dominio.com\",\"password\":\"uma-senha-com-12-caracteres-ou-mais\"}"
+```
+
+Depois de publicar, repita o cadastro contra a URL real do Worker ou aplique o D1 remoto:
+
+```bash
+wrangler d1 execute gpg-tec-portal --remote --file=schema.sql
+```
+
+## Variaveis E Secrets
+
+```text
+SETUP_TOKEN          secret temporario para criar/atualizar o admin
+SESSION_TTL_SECONDS  tempo da sessao em segundos, padrao 28800
+ALLOWED_ORIGIN       origem autorizada para CORS quando API e site estiverem em dominios diferentes
+COOKIE_SAMESITE      use Lax no mesmo dominio; use None apenas se site e API ficarem em dominios diferentes
 ```
