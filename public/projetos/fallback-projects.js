@@ -1,4 +1,4 @@
-export const projects = [
+export const fallbackProjects = [
   {
     id: "martelo-fantasma",
     codename: "Martelo Fantasma",

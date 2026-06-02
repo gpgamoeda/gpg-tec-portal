@@ -90,6 +90,7 @@ export async function importProjectFromGithub(input) {
       ...(repoData.topics || []),
     ].filter(Boolean),
     path: `projetos/${id}/index.html`,
+    page: `projetos/ficha.html?id=${id}`,
     url: repoData.homepage || repoData.html_url,
     repo: repoData.html_url,
     summary,

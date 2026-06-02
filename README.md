@@ -76,6 +76,7 @@ src/terminal/admin.js     comandos admin experimentais
 ```text
 projetos
 dossie oraculo
+ficha oraculo
 repo oraculo
 buscar copa
 tags

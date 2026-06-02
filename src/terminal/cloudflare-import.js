@@ -38,6 +38,7 @@ export function catalogProjectFromCloudflare(project) {
     priority: 3,
     tags: ["cloudflare", typeLabel],
     path: `projetos/${project.id}/index.html`,
+    page: `projetos/ficha.html?id=${project.id}`,
     url: project.url,
     repo: project.repo || "",
     summary: `Projeto ${typeLabel} detectado na Cloudflare.`,

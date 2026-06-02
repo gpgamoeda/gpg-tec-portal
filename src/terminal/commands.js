@@ -20,7 +20,7 @@ export function createCommandHandler({ projects, terminal, ui }) {
     visibleProjects().forEach((project, index) => {
       lines.push(`${String(index + 1).padStart(2, "0")}  ${project.codename}  ::  ${project.status}`);
       lines.push(`    ${project.summary}`);
-      lines.push(`    acesso: abrir ${project.aliases[0]} | dossie ${project.aliases[0]}`);
+      lines.push(`    acesso: abrir ${project.aliases[0]} | ficha ${project.aliases[0]} | dossie ${project.aliases[0]}`);
     });
 
     ui.typeLines(lines);
@@ -32,6 +32,7 @@ export function createCommandHandler({ projects, terminal, ui }) {
       "  help              lista comandos",
       "  projetos          lista os projetos",
       "  dossie <codigo>   mostra detalhes do projeto",
+      "  ficha <codigo>    abre a pagina do projeto",
       "  repo <codigo>     mostra repositorio/link tecnico",
       "  buscar <termo>     filtra projetos por texto/tag",
       "  tags              lista tags conhecidas",
@@ -77,6 +78,32 @@ export function createCommandHandler({ projects, terminal, ui }) {
     }
   }
 
+  function openProjectPage(query) {
+    if (!query) {
+      ui.appendLine("informe um codigo. exemplo: ficha oraculo", "warning");
+      return;
+    }
+
+    const project = findProject(query);
+
+    if (!project) {
+      ui.appendLine(`ficha nao localizada: ${query}`, "warning");
+      ui.appendLine("digite projetos para ver os codigos disponiveis.", "dim");
+      return;
+    }
+
+    const targetPath = project.page || `projetos/ficha.html?id=${project.id}`;
+    const targetUrl = new URL(targetPath, window.location.href).href;
+    const opened = window.open(targetUrl, "_blank", "noopener");
+
+    ui.appendLine(`abrindo ficha ${project.codename} em nova aba...`);
+
+    if (!opened) {
+      ui.appendLine("o navegador bloqueou a nova aba. permita pop-ups para este site.", "warning");
+      ui.appendLine(`destino: ${targetUrl}`, "dim");
+    }
+  }
+
   function showProjectDossier(query) {
     if (!query) {
       ui.appendLine("informe um codigo. exemplo: dossie oraculo", "warning");
@@ -110,6 +137,7 @@ export function createCommandHandler({ projects, terminal, ui }) {
       "proximos sinais:",
       ...project.next.map((item) => `  - ${item}`),
       `comando de acesso: abrir ${project.aliases[0]}`,
+      `ficha publica: ${project.page || `projetos/ficha.html?id=${project.id}`}`,
       `destino: ${project.url || project.path}`,
       "",
       "digite voltar para retornar a tela anterior.",
@@ -182,7 +210,7 @@ export function createCommandHandler({ projects, terminal, ui }) {
       `resultado da busca: ${query}`,
       ...matches.flatMap((project) => [
         `  ${project.codename} :: ${project.status}`,
-        `    abrir ${project.aliases[0]} | dossie ${project.aliases[0]}`,
+        `    abrir ${project.aliases[0]} | ficha ${project.aliases[0]} | dossie ${project.aliases[0]}`,
       ]),
     ]);
   }
@@ -309,6 +337,11 @@ export function createCommandHandler({ projects, terminal, ui }) {
 
     if (command.startsWith("repo ")) {
       showProjectRepo(command.replace("repo ", ""));
+      return "handled";
+    }
+
+    if (command.startsWith("ficha ")) {
+      openProjectPage(command.replace("ficha ", ""));
       return "handled";
     }
 

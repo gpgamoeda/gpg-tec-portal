@@ -421,6 +421,8 @@ function normalizeProjectRecord(project) {
     normalized.title = normalized.codename;
   }
 
+  normalized.page = normalized.page || `projetos/ficha.html?id=${normalized.id}`;
+
   return normalized;
 }
 
@@ -438,7 +440,20 @@ async function listProjects(request, env) {
   const rows = await env.DB.prepare(
     "SELECT payload FROM projects ORDER BY priority ASC, updated_at DESC, id ASC",
   ).all();
-  const projects = (rows.results || []).map((row) => JSON.parse(row.payload));
+  const projects = (rows.results || []).map((row) => normalizeProjectRecord(JSON.parse(row.payload)));
+
+  return json(request, env, { ok: true, projects });
+}
+
+async function listPublicProjects(request, env) {
+  if (!env.DB) {
+    return json(request, env, { ok: false, message: "DB nao configurado" }, 501);
+  }
+
+  const rows = await env.DB.prepare(
+    "SELECT payload FROM projects WHERE visibility = 'public' ORDER BY priority ASC, updated_at DESC, id ASC",
+  ).all();
+  const projects = (rows.results || []).map((row) => normalizeProjectRecord(JSON.parse(row.payload)));
 
   return json(request, env, { ok: true, projects });
 }
@@ -582,6 +597,10 @@ export default {
 
       if (request.method === "GET" && url.pathname === "/api/session") {
         return handleSession(request, env);
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/public/projects") {
+        return listPublicProjects(request, env);
       }
 
       if (request.method === "GET" && url.pathname === "/api/cloudflare/pages") {

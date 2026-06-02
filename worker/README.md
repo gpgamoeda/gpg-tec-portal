@@ -9,6 +9,7 @@ POST /api/setup/admin
 POST /api/login
 POST /api/logout
 GET  /api/session
+GET  /api/public/projects
 GET  /api/projects
 PUT  /api/projects/:id
 DELETE /api/projects/:id
