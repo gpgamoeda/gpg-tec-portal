@@ -11,6 +11,8 @@ POST /api/logout
 GET  /api/session
 GET  /api/projects
 PUT  /api/projects/:id
+DELETE /api/projects/:id
+POST /api/projects/seed
 POST /api/github/import
 GET  /api/cloudflare/pages
 GET  /api/cloudflare/workers

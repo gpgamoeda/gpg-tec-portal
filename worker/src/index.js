@@ -20,7 +20,7 @@ function getCorsHeaders(request, env) {
   return {
     "access-control-allow-credentials": "true",
     "access-control-allow-headers": "authorization, content-type",
-    "access-control-allow-methods": "GET, POST, PUT, OPTIONS",
+    "access-control-allow-methods": "DELETE, GET, POST, PUT, OPTIONS",
     "access-control-allow-origin": origin,
   };
 }
@@ -397,6 +397,127 @@ async function listCloudflareWorkers(request, env) {
   });
 }
 
+function normalizeProjectRecord(project) {
+  const normalized = {
+    ...project,
+    aliases: Array.isArray(project.aliases) ? project.aliases : [],
+    tags: Array.isArray(project.tags) ? project.tags : [],
+    stack: Array.isArray(project.stack) ? project.stack : [],
+    next: Array.isArray(project.next) ? project.next : [],
+    updated: project.updated || new Date().toISOString().slice(0, 10),
+    visibility: project.visibility || "public",
+    priority: Number(project.priority || 3),
+  };
+
+  if (!normalized.id) {
+    normalized.id = slugify(normalized.title || normalized.codename || normalized.url || "");
+  }
+
+  if (!normalized.codename) {
+    normalized.codename = normalized.title || titleFromName(normalized.id);
+  }
+
+  if (!normalized.title) {
+    normalized.title = normalized.codename;
+  }
+
+  return normalized;
+}
+
+async function listProjects(request, env) {
+  const user = await getSessionUser(request, env);
+
+  if (!user) {
+    return json(request, env, { ok: false, message: "sessao invalida" }, 401);
+  }
+
+  if (!env.DB) {
+    return json(request, env, { ok: false, message: "DB nao configurado" }, 501);
+  }
+
+  const rows = await env.DB.prepare(
+    "SELECT payload FROM projects ORDER BY priority ASC, updated_at DESC, id ASC",
+  ).all();
+  const projects = (rows.results || []).map((row) => JSON.parse(row.payload));
+
+  return json(request, env, { ok: true, projects });
+}
+
+async function upsertProject(request, env) {
+  const admin = await requireAdmin(request, env);
+
+  if (admin.error) {
+    return admin.error;
+  }
+
+  const body = await readJson(request);
+  const project = normalizeProjectRecord(body.project || body);
+
+  if (!project.id) {
+    return json(request, env, { ok: false, message: "projeto sem id" }, 400);
+  }
+
+  const now = new Date().toISOString();
+
+  await env.DB.prepare(
+    `INSERT INTO projects (id, payload, visibility, priority, updated_at)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       payload = excluded.payload,
+       visibility = excluded.visibility,
+       priority = excluded.priority,
+       updated_at = excluded.updated_at`,
+  ).bind(
+    project.id,
+    JSON.stringify(project),
+    project.visibility,
+    project.priority,
+    now,
+  ).run();
+
+  return json(request, env, { ok: true, project });
+}
+
+async function deleteProject(request, env, id) {
+  const admin = await requireAdmin(request, env);
+
+  if (admin.error) {
+    return admin.error;
+  }
+
+  await env.DB.prepare("DELETE FROM projects WHERE id = ?").bind(id).run();
+  return json(request, env, { ok: true, id });
+}
+
+async function seedProjects(request, env) {
+  const admin = await requireAdmin(request, env);
+
+  if (admin.error) {
+    return admin.error;
+  }
+
+  const body = await readJson(request);
+  const projects = Array.isArray(body.projects) ? body.projects.map(normalizeProjectRecord) : [];
+
+  if (!projects.length) {
+    return json(request, env, { ok: false, message: "lista de projetos vazia" }, 400);
+  }
+
+  const now = new Date().toISOString();
+  const statements = projects.map((project) => env.DB.prepare(
+    `INSERT INTO projects (id, payload, visibility, priority, updated_at)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       payload = excluded.payload,
+       visibility = excluded.visibility,
+       priority = excluded.priority,
+       updated_at = excluded.updated_at`,
+  ).bind(project.id, JSON.stringify(project), project.visibility, project.priority, now));
+
+  await env.DB.batch(statements);
+  return json(request, env, { ok: true, count: projects.length });
+}
+
 async function handleSetupAdmin(request, env) {
   const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
 
@@ -472,11 +593,19 @@ export default {
       }
 
       if (request.method === "GET" && url.pathname === "/api/projects") {
-        return json(request, env, routeNotImplemented("projects:list"), 501);
+        return listProjects(request, env);
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/projects/seed") {
+        return seedProjects(request, env);
       }
 
       if (request.method === "PUT" && url.pathname.startsWith("/api/projects/")) {
-        return json(request, env, routeNotImplemented("projects:update"), 501);
+        return upsertProject(request, env);
+      }
+
+      if (request.method === "DELETE" && url.pathname.startsWith("/api/projects/")) {
+        return deleteProject(request, env, decodeURIComponent(url.pathname.replace("/api/projects/", "")));
       }
 
       if (request.method === "POST" && url.pathname === "/api/github/import") {

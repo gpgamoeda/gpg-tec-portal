@@ -1,5 +1,5 @@
 import { projects as baseProjects } from "../data/projects.js";
-import { loadProjectCatalog } from "../data/catalog-storage.js";
+import { loadRemoteProjectCatalog } from "../data/catalog-storage.js";
 import { createCommandHandler } from "./commands.js";
 import { getTerminalDom } from "./dom.js";
 import { createSignalGlitch } from "./glitch.js";
@@ -10,7 +10,7 @@ import { createTerminalUi } from "./ui.js";
 
 const dom = getTerminalDom();
 const ui = createTerminalUi(dom);
-const projects = loadProjectCatalog(baseProjects);
+const projects = structuredClone(baseProjects);
 projects.baseProjects = baseProjects;
 
 let terminalReady = false;
@@ -44,7 +44,17 @@ const idle = createIdleController({
   terminalInput: dom.terminalInput,
 });
 
-const commands = createCommandHandler({ projects, terminal, ui });
+let commands = createCommandHandler({ projects, terminal, ui });
+
+function replaceProjects(nextProjects) {
+  projects.splice(0, projects.length, ...nextProjects);
+  projects.baseProjects = baseProjects;
+  commands = createCommandHandler({ projects, terminal, ui });
+}
+
+async function syncProjects() {
+  replaceProjects(await loadRemoteProjectCatalog(baseProjects));
+}
 
 function markTerminalReady() {
   glitch.start();
@@ -67,6 +77,7 @@ async function restoreTerminalSession() {
     return false;
   }
 
+  await syncProjects();
   terminalReady = true;
   terminal.authenticated = true;
   terminal.step = "command";
@@ -100,6 +111,7 @@ async function handleLogin(value) {
 
   try {
     const user = await login(terminal.user, value);
+    await syncProjects();
     terminal.authenticated = true;
     terminal.step = "command";
     terminal.user = user.email;

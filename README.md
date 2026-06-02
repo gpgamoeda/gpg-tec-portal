@@ -117,6 +117,7 @@ admin cloudflare pages
 admin cloudflare workers
 admin cloudflare importar pages gpg-tec-portal
 admin cloudflare importar workers gpg-tec-portal-api
+admin sincronizar
 admin export
 admin copiar
 admin download
@@ -132,6 +133,7 @@ Repositorios privados exigirao backend/token em uma etapa futura.
 
 Os comandos `admin cloudflare pages` e `admin cloudflare workers` listam projetos ativos pela API do Worker.
 O token da Cloudflare fica apenas no backend como secret.
+O comando `admin sincronizar` salva o catalogo atual no D1.
 
 ## Backend
 

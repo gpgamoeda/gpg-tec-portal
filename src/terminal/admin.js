@@ -1,7 +1,10 @@
 import {
+  deleteRemoteProject,
   exportProjectCatalog,
   resetProjectCatalog,
   saveProjectCatalog,
+  saveRemoteProject,
+  seedRemoteProjectCatalog,
 } from "../data/catalog-storage.js";
 import {
   catalogProjectFromCloudflare,
@@ -63,9 +66,40 @@ export function createAdminCommands({ baseProjects, projects, terminal, ui, find
     ui.typeLines(lines);
   }
 
-  function persist(message = "catalogo salvo no navegador local.") {
+  function persist(message = "catalogo salvo.") {
     saveProjectCatalog(projects);
     ui.appendLine(message, "dim");
+  }
+
+  async function persistProject(project, message = "catalogo salvo no D1.") {
+    saveProjectCatalog(projects);
+
+    try {
+      await saveRemoteProject(project);
+      ui.appendLine(message, "dim");
+    } catch (error) {
+      ui.appendLine(`catalogo salvo localmente; D1 falhou: ${error.message}`, "warning");
+    }
+  }
+
+  async function persistCatalog(message = "catalogo salvo no D1.") {
+    saveProjectCatalog(projects);
+
+    try {
+      await seedRemoteProjectCatalog(projects);
+      ui.appendLine(message, "dim");
+    } catch (error) {
+      ui.appendLine(`catalogo salvo localmente; D1 falhou: ${error.message}`, "warning");
+    }
+  }
+
+  async function removeRemoteProject(id) {
+    try {
+      await deleteRemoteProject(id);
+      ui.appendLine(`admin: ${id} removido do D1.`, "dim");
+    } catch (error) {
+      ui.appendLine(`remocao local feita; D1 falhou: ${error.message}`, "warning");
+    }
   }
 
   function viewProject(query) {
@@ -110,7 +144,7 @@ export function createAdminCommands({ baseProjects, projects, terminal, ui, find
 
     project[field] = value;
     project.updated = today();
-    persist(`admin: ${field} atualizado em ${project.id}.`);
+    persistProject(project, `admin: ${field} atualizado em ${project.id}.`);
   }
 
   function updatePriority(query, value) {
@@ -144,7 +178,7 @@ export function createAdminCommands({ baseProjects, projects, terminal, ui, find
 
     project.tags = Array.from(new Set([...(project.tags || []), tag]));
     project.updated = today();
-    persist(`admin: tag adicionada em ${project.id}.`);
+    persistProject(project, `admin: tag adicionada em ${project.id}.`);
   }
 
   function removeTag(query, tag) {
@@ -162,7 +196,7 @@ export function createAdminCommands({ baseProjects, projects, terminal, ui, find
 
     project.tags = (project.tags || []).filter((item) => item !== tag);
     project.updated = today();
-    persist(`admin: tag removida de ${project.id}.`);
+    persistProject(project, `admin: tag removida de ${project.id}.`);
   }
 
   function exportCatalog() {
@@ -200,7 +234,7 @@ export function createAdminCommands({ baseProjects, projects, terminal, ui, find
     }
 
     projects.splice(0, projects.length, ...importedProjects);
-    persist("admin: catalogo importado e salvo no navegador local.");
+    persistCatalog("admin: catalogo importado e salvo no D1.");
   }
 
   async function pasteCatalog() {
@@ -235,7 +269,7 @@ export function createAdminCommands({ baseProjects, projects, terminal, ui, find
   function resetCatalog() {
     projects.splice(0, projects.length, ...structuredClone(baseProjects));
     resetProjectCatalog();
-    ui.appendLine("admin: catalogo local restaurado para a base do repositorio.", "dim");
+    persistCatalog("admin: catalogo restaurado para a base do repositorio no D1.");
   }
 
   function updateTextCommand(rawValue, prefix, field) {
@@ -260,7 +294,7 @@ export function createAdminCommands({ baseProjects, projects, terminal, ui, find
 
     project.codename = value;
     project.updated = today();
-    persist(`admin: codinome atualizado em ${project.id}.`);
+    persistProject(project, `admin: codinome atualizado em ${project.id}.`);
   }
 
   function updateAliases(query, alias, mode) {
@@ -283,7 +317,7 @@ export function createAdminCommands({ baseProjects, projects, terminal, ui, find
     }
 
     project.updated = today();
-    persist(`admin: aliases atualizados em ${project.id}.`);
+    persistProject(project, `admin: aliases atualizados em ${project.id}.`);
   }
 
   function updateStack(query, item, mode) {
@@ -306,7 +340,7 @@ export function createAdminCommands({ baseProjects, projects, terminal, ui, find
     }
 
     project.updated = today();
-    persist(`admin: stack atualizado em ${project.id}.`);
+    persistProject(project, `admin: stack atualizado em ${project.id}.`);
   }
 
   function addNext(rawValue) {
@@ -326,7 +360,7 @@ export function createAdminCommands({ baseProjects, projects, terminal, ui, find
 
     project.next = [...(project.next || []), value];
     project.updated = today();
-    persist(`admin: proximo passo adicionado em ${project.id}.`);
+    persistProject(project, `admin: proximo passo adicionado em ${project.id}.`);
   }
 
   function removeNext(query, indexText) {
@@ -345,7 +379,7 @@ export function createAdminCommands({ baseProjects, projects, terminal, ui, find
 
     project.next.splice(index, 1);
     project.updated = today();
-    persist(`admin: proximo passo removido de ${project.id}.`);
+    persistProject(project, `admin: proximo passo removido de ${project.id}.`);
   }
 
   function listNext(query) {
@@ -382,7 +416,7 @@ export function createAdminCommands({ baseProjects, projects, terminal, ui, find
       return;
     }
 
-    projects.push({
+    const duplicatedProject = {
       ...structuredClone(project),
       id: nextId,
       codename: `${project.codename} Clone`,
@@ -391,9 +425,11 @@ export function createAdminCommands({ baseProjects, projects, terminal, ui, find
       visibility: "hidden",
       priority: Number(project.priority || 3) + 1,
       updated: today(),
-    });
+    };
 
-    persist(`admin: ${project.id} duplicado como ${nextId}.`);
+    projects.push(duplicatedProject);
+
+    persistProject(duplicatedProject, `admin: ${project.id} duplicado como ${nextId}.`);
   }
 
   function removeProject(query) {
@@ -408,7 +444,9 @@ export function createAdminCommands({ baseProjects, projects, terminal, ui, find
     }
 
     const [removedProject] = projects.splice(index, 1);
-    persist(`admin: ${removedProject.id} removido do catalogo local.`);
+    saveProjectCatalog(projects);
+    ui.appendLine(`admin: ${removedProject.id} removido do catalogo local.`, "dim");
+    removeRemoteProject(removedProject.id);
   }
 
   async function importGithubProject(query) {
@@ -429,7 +467,7 @@ export function createAdminCommands({ baseProjects, projects, terminal, ui, find
         projects.push(importedProject);
       }
 
-      persist(`admin/github: ${importedProject.id} importado.`);
+      await persistProject(importedProject, `admin/github: ${importedProject.id} importado.`);
       viewProject(importedProject.id);
     } catch (error) {
       ui.appendLine(`admin/github falhou: ${error.message}`, "warning");
@@ -493,7 +531,7 @@ export function createAdminCommands({ baseProjects, projects, terminal, ui, find
         projects.push(importedProject);
       }
 
-      persist(`admin/cloudflare: ${importedProject.id} importado.`);
+      await persistProject(importedProject, `admin/cloudflare: ${importedProject.id} importado.`);
       viewProject(importedProject.id);
     } catch (error) {
       ui.appendLine(`admin/cloudflare falhou: ${error.message}`, "warning");
@@ -525,6 +563,7 @@ export function createAdminCommands({ baseProjects, projects, terminal, ui, find
       "  admin cloudflare pages lista Pages ativos",
       "  admin cloudflare workers lista Workers ativos",
       "  admin cloudflare importar pages|workers <nome>",
+      "  admin sincronizar   salva catalogo atual no D1",
       "  admin export        mostra JSON do catalogo local",
       "  admin copiar        copia JSON para clipboard",
       "  admin download      baixa JSON do catalogo",
@@ -577,6 +616,11 @@ export function createAdminCommands({ baseProjects, projects, terminal, ui, find
 
     if (command === "admin reset") {
       resetCatalog();
+      return true;
+    }
+
+    if (command === "admin sincronizar" || command === "admin sync") {
+      persistCatalog("admin: catalogo atual sincronizado no D1.");
       return true;
     }
 
